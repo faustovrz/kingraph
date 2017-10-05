@@ -5,7 +5,7 @@ library(visNetwork)
 library(htmltools)
 library(RColorBrewer)
 library(gplots)
-
+# Input/output #################################################################
 
 phi.palette <- c("blue","purple","green","yellow","orange","red")
 phi.breaks <- c(0,0.0442,0.0884,0.177,0.354,0.45,0.5)
@@ -105,6 +105,7 @@ vis.kingraph <- function(g,legend.arg=NULL, bipartite = FALSE, remove.phi=NULL){
     )
   )
 }
+# igraph manipulation ##########################################################
 
 
 kinship.graph <- function(adj, thresh = 0.0442, deg = NULL, remove.unrelated =TRUE){
@@ -261,33 +262,100 @@ add.collection <- function(g,col.df){
 }
 
 # Duplicate Network
-find.clones <- function(phi,col= data.frame()){
+
+
+kin.bipartite.graph <-function(g, type.attr = "type", remove.unrelated=FALSE){
+  #check bipartite
+  type <- as.factor(get.vertex.attribute(g, type.attr))
+  type <- as.factor(get.vertex.attribute(g, "collection")) 
+  if (length(levels(type)) != 2){
+    stop(paste(type.attr, " is not a bipartite attribute: ", levels(type)))
+    
+  }
+  type <- c(TRUE,FALSE)[type]
+  g <- set_vertex_attr(g, "type", V(g), type)
+  
+  part1 <- V(g)$name[which(V(g)$type==FALSE)]
+  part2 <- V(g)$name[which(V(g)$type==TRUE)]
+  bp.combination <- expand.grid(part1,part2)
+  colnames(bp.combination) <-c("V1","V2")
+  
+  bp.edges <-c(t(merge(as.data.frame(get.edgelist(g)),
+                       bp.combination,
+                       by=c("V1","V2"))))
+  
+  bp.edges.ids <-get.edge.ids(g, bp.edges)
+  
+  bp <- delete.edges(g, E(g)[!(E(g) %in% E(g)[bp.edges.ids])])
+  if(remove.unrelated == TRUE){
+    bp <- delete.vertices(bp,which(degree(bp)<1))
+  }
+  bp
+}
+
+remove.edges.by.phi<- function(g, phi=0.0442){
+  g <- delete.edges(g, E(g)[E(g)$PHI < phi])
+}
+
+remove.degree.0<- function(g){
+  g <- delete.vertices(g, which(degree(g) == 0))
+}
+
+# fastindep  wrapper ###########################################################
+# TODO: add read.indep(file,n)
+
+fastindep <- function(thresh,n,input,output, log=""){
+# TODO: add tmp file ?
+
+  cmd.exe <- '/bio/bin/fastindep'
+  args <- paste(c('-t','-n','-i','-o'),
+                c(thresh,n,input,output))
+  
+  return(system2(cmd.exe, args = args, stdout = log))
+}
+
+# indep <- fastindep(thresh = 0.0442,
+#                    n = 2,
+#                    input = 'phi/WILDLAC.HapMap.745.esculenta.phi.matrix.txt',
+#                    output = 'phi/WILDLAC.HapMap.745.esculenta.indep',
+#                    log = 'phi/rfastindep.log')
+
+# Kinship analysis #############################################################
+
+find.dup <- function(phi,col= data.frame()){
   g <- kinship.graph(adj.from.phi(phi), thresh = 0.45)
-  if(nrow(col.df)>0){
+  
+  if(vcount(g) == 0){ 
+    return(0)
+  }
+  
+  if(nrow(col.df) > 0){
     g <-add.collection(g,col.df)
   }
-  clone.ivs <- phi.ivs(g, phi)
+  # return all vertices if no dupclicates???
   
-  V(g)$color.border[V(clone.ivs$g)$name %in% names(clone.ivs$independent)] <- "black"
-
+  dup.ivs <- phi.ivs(g, phi)
+  
+  V(g)$color.border[V(dup.ivs$g)$name %in% names(dup.ivs$independent)] <- "black"
+  
   if(length(col.df) == 0){
-  legend.arg <- list(addNodes = data.frame(label = c("independent set"), 
+    legend.arg <- list(addNodes = data.frame(label = c("independent set"), 
                                              shape = c("dot"),
                                              color.border = c("black")))
   }else{ 
-  g <- add.collection(g,col.df)
-  legend.arg <- list(addNodes = data.frame(label = c("CIAT","HapMap","independent set"), 
+    g <- add.collection(g,col.df)
+    legend.arg <- list(addNodes = data.frame(label = c("CIAT","HapMap","independent set"), 
                                              shape = c("dot","diamond","dot"),
                                              color.border = c(NA,NA,"black")))
     
   }  
   list(g = g, 
-       redundant = clone.ivs$redundant,
-       independent  = clone.ivs$independent,
-       phi = phi[ !(phi$INDV1 %in% names(clone.ivs$redundant)) & !(phi$INDV2 %in%  names(clone.ivs$redundant)),],
+       redundant = dup.ivs$redundant,
+       independent  = dup.ivs$independent,
+       phi = phi[ !(phi$INDV1 %in% names(dup.ivs$redundant)) &
+                    !(phi$INDV2 %in%  names(dup.ivs$redundant)),],
        legend.arg = legend.arg)
 }
-
 
 kinship.analysis <- function(phi.file,col.df=data.frame(),ivs.thresh=0.177, results.dir="results"){
   phi <- read.phi(phi.file) 
@@ -312,7 +380,8 @@ kinship.analysis <- function(phi.file,col.df=data.frame(),ivs.thresh=0.177, resu
   connectivity <- ecount(g.thresh)/(vertex.count*(vertex.count-1)/2)
   adj.heatmap(adj, pdf.base = paste(output.base,".matrix", sep=""),phi.thresh = -100)
   
-  dup<- find.clones(phi,col.df)
+  dup<- find.dup(phi,col.df)
+  
   phi045 <- phi$PHI >0.45
   clone.independent <- phi$INDV1  %in% names(dup$redundant)
   clone.redundant <- phi$INDV2  %in% names(dup$independent)
@@ -325,7 +394,6 @@ kinship.analysis <- function(phi.file,col.df=data.frame(),ivs.thresh=0.177, resu
   write.table(nr.df,
               paste(output.base,".nodup.list", sep=""),
               row.names = FALSE, col.names= FALSE, quote=FALSE, sep="\t")
-  
   
   visSave(vis.kingraph(color.components(dup$g))[[2]],
           paste(output.base,".nodup.html", sep=""),
@@ -344,6 +412,7 @@ kinship.analysis <- function(phi.file,col.df=data.frame(),ivs.thresh=0.177, resu
             selfcontained = TRUE, background = "lightgrey")
     }
   }
+  
   adj.heatmap(adj.from.phi(dup$phi),
               pdf.base = paste(output.base,".nodup.matrix", sep=""),
               phi.thresh = -100)
@@ -422,41 +491,3 @@ kinship.analysis <- function(phi.file,col.df=data.frame(),ivs.thresh=0.177, resu
                n.independent = length(kin.ivs$independent),
                n.redundant = length(kin.ivs$redundant))
 }
-
-kin.bipartite.graph <-function(g, type.attr = "type", remove.unrelated=FALSE){
-  #check bipartite
-  type <- as.factor(get.vertex.attribute(g, type.attr))
-  type <- as.factor(get.vertex.attribute(g, "collection")) 
-  if (length(levels(type)) != 2){
-    stop(paste(type.attr, " is not a bipartite attribute: ", levels(type)))
-     
-  }
-    type <- c(TRUE,FALSE)[type]
-    g <- set_vertex_attr(g, "type", V(g), type)
-
-  part1 <- V(g)$name[which(V(g)$type==FALSE)]
-  part2 <- V(g)$name[which(V(g)$type==TRUE)]
-  bp.combination <- expand.grid(part1,part2)
-  colnames(bp.combination) <-c("V1","V2")
-  
-  bp.edges <-c(t(merge(as.data.frame(get.edgelist(g)),
-                       bp.combination,
-                       by=c("V1","V2"))))
-  
-  bp.edges.ids <-get.edge.ids(g, bp.edges)
-  
-  bp <- delete.edges(g, E(g)[!(E(g) %in% E(g)[bp.edges.ids])])
-  if(remove.unrelated == TRUE){
-    bp <- delete.vertices(bp,which(degree(bp)<1))
-  }
-  bp
-}
-
-remove.edges.by.phi<- function(g, phi=0.0442){
-  g <- delete.edges(g, E(g)[E(g)$PHI < phi])
-}
-
-remove.degree.0<- function(g){
-  g <- delete.vertices(g, which(degree(g)==0))
-}
-

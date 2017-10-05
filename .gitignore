@@ -2,6 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+vcf/*
+phi/*
+indep/*
 results/*
 *.tab
 *.log

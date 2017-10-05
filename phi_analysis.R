@@ -2,7 +2,7 @@
 library(optparse)
 source('kingraph.R')
 
-cat(as.character(Sys.time()),"\n\n")
+cat(as.character(Sys.time()),"\n\n", file = stderr())
 
 phi.help <- "comma separated string defining phi values: [default= %default]"
 
@@ -11,7 +11,7 @@ option_list <- list(
               help= phi.help,
               metavar = "character"),
   make_option(c("-c", "--col"), type = "character", 
-              help="collection table with name and collection columns",
+              help="collection table with 2 columns: name collection",
               metavar="character")
 ); 
 
