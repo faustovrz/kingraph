@@ -1,5 +1,6 @@
 library(reshape2)
 library(igraph)
+library(stringr)
 library(Matrix)
 library(visNetwork)
 library(htmltools)
@@ -301,26 +302,72 @@ remove.degree.0<- function(g){
   g <- delete.vertices(g, which(degree(g) == 0))
 }
 
-# fastindep  wrapper ###########################################################
-# TODO: add read.indep(file,n)
+# FastIndep  wrapper ###########################################################
 
+read.fastindep <-function(file,read.max=2){
+# TODO: Add validation of file size, 1GB?
+  f <- file(description=file, open="r")
+  stop <- FALSE
+  set.list <- list()
+  set.size <- c()
+  n.set <- 0
+  result.log <- c()
+  
+  while(!stop) {
+    line <- readLines(f, n = 1)
+    if(length(line) == 0) {
+      stop <- TRUE
+      break()
+    }
+    
+    line <- gsub("^\\s","",line, perl = TRUE)
+    
+    if(line == ""){
+      next
+    } else if (grepl("Set Size =",line)){
+      n.set <- n.set + 1
+      if (n.set <= read.max){
+        line <- gsub("Set Size =\\s+\\d+\\s+","",line, perl = TRUE)
+        set <- strsplit(line,"\\s+", perl =TRUE)
+        set.list[n.set] <- set
+      }
+    } else if(grepl("Map Size",line)){
+      size.count <- str_extract_all(line, "[0-9]+", simplify = TRUE)
+      size.count <- as.numeric(size.count)
+      set.size<-c(set.size,rep(size.count[1],size.count[2]))
+    } else {
+      result.log <- c(result.log,line)
+    }
+
+  }
+  close(f)
+  list(n.set= n.set, set.list= set.list,set.size= set.size, 
+       greedy = set.list[[1]], log = result.log)
+}
+# Example
+# fast.ivs <- read.fastindep("phi/WILDLAC.HapMap.745.esculenta.indep", 100)
+# hist(fast.ivs$set.size)
+# fast.ivs$greedy
+
+
+#### 
 fastindep <- function(thresh,n,input,output, log=""){
 # TODO: add tmp file ?
 
   cmd.exe <- '/bio/bin/fastindep'
   args <- paste(c('-t','-n','-i','-o'),
                 c(thresh,n,input,output))
-  
   return(system2(cmd.exe, args = args, stdout = log))
 }
 
+# Example
 # indep <- fastindep(thresh = 0.0442,
-#                    n = 2,
+#                    n = 100,
 #                    input = 'phi/WILDLAC.HapMap.745.esculenta.phi.matrix.txt',
 #                    output = 'phi/WILDLAC.HapMap.745.esculenta.indep',
 #                    log = 'phi/rfastindep.log')
-
-# Kinship analysis #############################################################
+ 
+ # Kinship analysis #############################################################
 
 find.dup <- function(phi,col= data.frame()){
   g <- kinship.graph(adj.from.phi(phi), thresh = 0.45)
