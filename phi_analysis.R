@@ -21,9 +21,9 @@ opt_parser <- OptionParser(usage = "%prog [options] file1 file2 ...",
 args <- parse_args2(opt_parser)
 opts <- args$options
 
-files <- args$args
+input <- args$args
 
-if (length(files) == 0) {
+if (length(input) == 0) {
   stop("No input file given.\n",print_help(opt_parser))
 }
 
@@ -49,7 +49,7 @@ columns <- c("file.base", "phi.thresh", "related.fr", "connectivity",
 write.table(t(columns), file= "results/summary.tab",row.names = FALSE,
             quote=FALSE, sep="\t", col.names =FALSE)
 
-for (file in files){
+for (file in input){
   for(coeff in kin.coeff){
     kin.summary <- kinship.analysis(file, 
                                     col= col.df,
