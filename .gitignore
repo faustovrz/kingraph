@@ -6,6 +6,8 @@ vcf/*
 phi/*
 indep/*
 results/*
+duplicate/*
+fastivs/*
 *.tab
 *.log
 *.relatedness2

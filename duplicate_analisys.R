@@ -4,6 +4,8 @@ source('kingraph.R')
 
 cat(as.character(Sys.time()),"\n\n", file = stderr())
 
+# Setup command line options  ##################################################
+
 option_list <- list(
   make_option(c("-t","--phi"), type = "numeric", default = "0.45", 
               help = "phi threshold to infer duplication [default= %default]",
@@ -11,13 +13,15 @@ option_list <- list(
   make_option(c("-v", "--vertexinfo"), type = "character", 
               help="tab delimited file, minimum 2 columns: name collection",
               metavar="option"),
-  make_option(c("-r", "--resultsdir"), type = "character", default = "results",
+  make_option(c("-r", "--resultsdir"), type = "character", default = "duplicate",
               help="results directory [default= %default]",
               metavar="option")
 ); 
 
-opt_parser <- OptionParser(usage = "%prog [options] file1 file2 ...",
+opt_parser <- OptionParser(usage = "%prog [options] file",
                            option_list=option_list);
+
+# Initialization   #############################################################
 
 args <- parse_args2(opt_parser)
 opts <- args$options
@@ -29,7 +33,7 @@ if (length(input) == 0) {
 }
 
 
-if (!is.null(opts$v)) {
+if (!is.null(opts$vertexinfo)) {
   vertex.info <- read.table(file=opts$vertexinfo, header=TRUE)
   if (!all(c('name','collection') %in% colnames(vertex.info))){
     stop(paste('Either `name` or `collection` headers missing from',
@@ -40,19 +44,23 @@ if (!is.null(opts$v)) {
                            collection = character(0)) 
 }
 
-results.dir <- file.path(normalizePath(dirname(opts$r)),
-                         basename(opts$r))
+results.dir <- file.path(normalizePath(dirname(opts$resultsdir)),
+                         basename(opts$resultsdir))
 
 dir.create(results.dir)
 
 thresh <- opts$phi
 
-for (file in input){
+# Analysis per file  ###########################################################
 
+for (file in input){
+  # Setup IO ###################################################################
   file.base <- basename(tools::file_path_sans_ext(file))
   output.base <- file.path(results.dir,
                            paste(file.base,thresh, sep="."))
-  # kinship network
+  
+  # Kinship network ############################################################
+  
   phi <- read.phi(file) 
   adj <- adj.from.phi(phi)
   g <-kinship.graph(adj, remove.unrelated = FALSE)
@@ -87,9 +95,13 @@ for (file in input){
                        dup.redundant = length(dup$redundant),
                        dup.fr =  vcount(dup$g)/vcount(g))
   
-### Text output
+  # Text output ################################################################
   write.table(phi[ is.dup & INDV1.is.redundant & INDV2.is.independent, ],
               paste(output.base,".dup.phi", sep=""),
+              row.names = FALSE, quote=FALSE, sep="\t")
+  
+  write.table(dup$phi,
+              paste(output.base,".nodup.phi", sep=""),
               row.names = FALSE, quote=FALSE, sep="\t")
   cat(nodup,
       file =  paste(output.base,"nodup","list", sep ="."),
@@ -99,7 +111,7 @@ for (file in input){
               paste(output.base,".dup.summary", sep=""),
               row.names = FALSE, quote=FALSE, sep="\t")
   
-### Plot output
+  # Plot output ################################################################
   
   adj.heatmap(adj,pdf.base = paste(output.base,"matrix", sep="."))
   

@@ -8,6 +8,5 @@ file <- args <- commandArgs(TRUE)[1]
 phi <- read.phi(file)
 
 # Writing output to stdout
-write.kinship.matrix(adj.from.phi(phi),file = "")
-#write.table(file = "", adj.from.phi(phi)$matrix, quote = FALSE, sep = "\t")
+write.table(file = "", adj.from.phi(phi)$matrix, quote = FALSE, sep = "\t")
 
