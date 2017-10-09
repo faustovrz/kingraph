@@ -61,7 +61,6 @@ dir.create(results.dir)
 thresh <- opts$phi
 n <- opts$nreq
 m <- opts$nread
-print(opts)
 
 file.base <- basename(tools::file_path_sans_ext(file))
 output.base <- file.path(results.dir,
@@ -90,15 +89,20 @@ ivs.out <- read.fastindep(fastindep.out, max = m)
 
 # Minimum Maximal independent set ##############################################
 # hints to parental lines
-
 adj <- adj.from.phi(phi)
 g <- kinship.graph(adj, remove.unrelated = FALSE)
+is.ivs <- as.factor(V(g)$name %in% ivs.out$best)
+independent <- data.frame(name = V(g)$name,
+                          ivs = is.ivs)
+independent$color.border <- c(NA,'black')[is.ivs]
 
-
-
-is.independent <- as.factor(vertex.info$name %in% ivs.out$best)
-vertex.info$ivs <- is.independent
-vertex.info$color.border[is.independent] <- 'black'
+if (nrow(vertex.info) > 0){
+  vertex.info <- merge(vertex.info,independent, by='name')
+  as.type = 'collection'
+} else{
+  vertex.info <- independent
+  as.type = NULL
+}
 
 # Add vertex set  info to graph ################################################
 g <- add.vertex.info(g,vertex.info)
@@ -124,3 +128,17 @@ write.table(V(g)$name[degree(g) == 0],
 # plot adjacency matrix # print to pdf?
 # plot html mst
 
+# adj.heatmap(adj, pdf.base = paste(output.base, "matrix", sep="."))
+
+legend.arg <- list(addNodes = data.frame(label = c("HapMap","CIAT",
+                                                   "independent set"), 
+                                         shape = c("diamond","dot","dot"),
+                                         color.border = c(NA,NA,"black")))
+
+g.vis <- vis.kingraph(color.components(mst(g)), legend.arg = legend.arg)
+
+visSave(g.vis[[2]],
+        paste(output.base,"mst","html", sep="."),
+        selfcontained = TRUE, background = "lightgrey")
+
+system2("rm", args = c("-r", paste(results.dir,"*_files", sep = "/")))

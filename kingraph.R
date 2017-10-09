@@ -278,7 +278,7 @@ color.components<- function(g){
 }
 
 add.vertex.info <- function(g,vertex.info,
-                            as.type ="collection",
+                            as.type = NULL,
                             type.shp = TRUE){
   # add collection (CIAT vs HapMap) data.
   # TODO: generalize to add any dataframe to the graph
@@ -286,13 +286,22 @@ add.vertex.info <- function(g,vertex.info,
   g.info <- merge(x=data.frame(name=V(g)$name), y=vertex.info, by="name")
   shp <- c("dot","diamond")
   type <- c(FALSE,TRUE)
-  if(length(levels(g.info[,as.type])) == 2){
-    V(g)$type <-  type[g.info[,as.type]]
-  }
-  if(type.shp==TRUE){
-  V(g)$shape <- shp[g.info[,as.type]]
-  }
+
+  if(!is.null(as.type)){
+    if(length(levels(g.info[,as.type])) == 2){
+      V(g)$type <-  type[g.info[,as.type]]
+    }
+    if(type.shp==TRUE){
+    V(g)$shape <- shp[g.info[,as.type]]
+    }
+  } 
+
   V(g)$title <-  V(g)$name
+  v.attr <- list.vertex.attributes(g)
+  v.change <- colnames(g.info)[!(colnames(g.info) %in% v.attr)]
+  for(column in v.change){
+    g <- set.vertex.attribute(g, name = column, value=g.info[,column])
+  }
   g
 }
 
@@ -340,7 +349,11 @@ find.dup <- function(phi,thresh =0.45, vertex.info = NULL){
   }
   
   if(is.data.frame(vertex.info)){
-    g <-add.vertex.info(g,vertex.info)
+    as.type <- NULL
+    if (any(grepl('collection', colnames(vertex.info)))){
+      as.type <- 'collection'
+    }
+    g <-add.vertex.info(g,vertex.info,as.type = as.type)
   }
   # return all vertices if no dupclicates???
   

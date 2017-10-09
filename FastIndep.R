@@ -14,7 +14,7 @@ run.fastindep <- function(exe = 'fastindep', thresh=0.0442,
   
   args <- paste(c('-t', '-n', '-i', '-o'),
                 c(thresh, n, input, output))
-  print(args)
+  
   return(system2(exe, args = args, stdout = log))
 }
 
